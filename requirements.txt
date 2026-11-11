@@ -1,0 +1,39 @@
+# MyStudio backend dependencies (pinned).
+#
+# Install with:
+#   pip install -r requirements.txt
+
+# --- Core ---------------------------------------------------------------
+Django==6.1.2
+djangorestframework==3.18.3
+djangorestframework-simplejwt==5.5.1
+django-environ==0.14.0
+django-cors-headers==4.9.0
+django-filter==26.2
+drf-spectacular==0.30.0
+
+# PostgreSQL driver (psycopg 3, binary distribution).
+# Django uses this automatically when psycopg2 is not installed.
+psycopg[binary]==3.3.8
+
+# drf-spectacular's YAML renderer. Python 3.15 has no pre-built wheel yet;
+# see the PyYAML note in README.md if a rebuild is required.
+PyYAML==6.0.3
+
+# --- Media --------------------------------------------------------------
+# Official Cloudinary SDK for image hosting, and Pillow for verifying the
+# actual image format before anything is uploaded.
+cloudinary==1.47.0
+Pillow==12.3.0
+
+# --- Tests --------------------------------------------------------------
+pytest==9.2.0
+pytest-django==4.14.0
+pytest-cov==7.1.0
+
+# --- Production ---------------------------------------------------------
+gunicorn==26.2.0
+whitenoise==6.12.0
+sentry-sdk==2.73.0
+# Shared cache client for CACHE_URL (production auth throttling).
+redis==8.1.0
