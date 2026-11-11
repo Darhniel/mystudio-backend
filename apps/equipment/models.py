@@ -86,6 +86,8 @@ class Equipment(UUIDTimeStampedModel, DeactivateOnDeleteModel):
             )
 
     def save(self, *args, **kwargs):
+        self.full_clean()
+        
         # Collapse empty strings to NULL so the partial unique constraint and
         # the optional-image checks only see a real Cloudinary reference.
         self.image_url = self.image_url or None

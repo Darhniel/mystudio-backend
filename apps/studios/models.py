@@ -8,6 +8,7 @@ ordering and the deletion behaviour that protects booking history.
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import IntegrityError, models, transaction
+from django.db.models.functions import Lower
 
 from apps.common.constants import MAX_DATABASE_INTEGER
 from apps.common.models import (
@@ -71,6 +72,11 @@ class Studio(UUIDTimeStampedModel, DeactivateOnDeleteModel):
             models.CheckConstraint(
                 condition=models.Q(capacity__gte=1),
                 name="studio_capacity_positive",
+            ),
+            models.UniqueConstraint(
+                Lower("slug"),
+                name="studio_unique_lower_slug",
+                violation_error_message="A studio with this slug already exists.",
             ),
         ]
 
@@ -143,6 +149,7 @@ class StudioImage(UUIDTimeStampedModel):
             "are broken by created_at and then id."
         ),
     )
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         # ``id`` is the final tie-breaker: created_at can theoretically collide
@@ -153,6 +160,13 @@ class StudioImage(UUIDTimeStampedModel):
             models.Index(
                 fields=["studio", "display_order"],
                 name="studioimage_order_idx",
+            ),
+        ]
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=["studio", "display_order"],
+                name="unique_studio_image_order",
             ),
         ]
 

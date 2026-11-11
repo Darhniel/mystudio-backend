@@ -21,4 +21,7 @@ def active_equipment():
     availability when a reservation is attempted.
     """
 
-    return Equipment.objects.filter(is_active=True)
+    return Equipment.objects.filter(
+        is_active=True,
+        stock_quantity_gt=0,
+    ).order_by("name")

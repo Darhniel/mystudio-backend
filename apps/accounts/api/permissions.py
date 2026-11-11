@@ -72,11 +72,11 @@ class IsOwnerOrManager(HasRole):
     allowed_roles = CATALOGUE_WRITE_ROLES
 
 
-class IsAdministrativeStaff(RoleBasedPermission):
-    """Any owner, manager or staff account may read administrative data."""
+# class IsAdministrativeStaff(RoleBasedPermission):
+#     """Any owner, manager or staff account may read administrative data."""
 
-    read_roles = ADMINISTRATIVE_ROLES
-    write_roles = frozenset()
+#     read_roles = ADMINISTRATIVE_ROLES
+#     write_roles = frozenset()
 
 
 class CanManageCatalogue(RoleBasedPermission):

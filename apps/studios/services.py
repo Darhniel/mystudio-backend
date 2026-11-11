@@ -10,6 +10,7 @@ import logging
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
+from django.db import models
 from django.db.models import Max
 
 from apps.common.cloudinary import (
@@ -126,6 +127,14 @@ def add_studio_image(
 
     if display_order is None:
         display_order = _next_display_order(studio)
+        with transaction.atomic():
+            StudioImage.objects.filter(
+                studio=studio,
+                display_order__gte=display_order,
+            ).update(
+                display_order=models.F("display_order") + 1,
+                updated_at=timezone.now(),
+            )
 
     try:
         with transaction.atomic():
@@ -178,5 +187,6 @@ def delete_studio_image(*, image: StudioImage) -> None:
     public_id = image.cloudinary_public_id
 
     with transaction.atomic():
-        image.delete()
         delete_image(public_id)
+
+        image.delete()

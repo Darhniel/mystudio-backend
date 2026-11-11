@@ -100,33 +100,26 @@ def update_equipment(
     for field, value in changes.items():
         setattr(equipment, field, value)
 
-    # Replacement: save new refs first, then try to delete old asset outside
-    # the transaction. If old-asset deletion fails, the replacement still
-    # succeeds and the failure is logged.
-    if uploaded is not None:
-        try:
-            equipment.save(update_fields=list(set(changes) | {"updated_at"}))
-        except Exception:
-            _discard_upload(uploaded.public_id)
-            raise
-        _remove_previous(previous_public_id, keep=uploaded.public_id)
-        return equipment
-
-    # Removal: clear row and delete asset atomically. Failure rolls back.
     try:
         with transaction.atomic():
+            # NEW: If clearing, delete from Cloudinary FIRST
+            if clearing and previous_public_id:
+                delete_image(previous_public_id)
+            
+            # Then update the database
             equipment.save(update_fields=list(set(changes) | {"updated_at"}))
-            delete_image(previous_public_id)
+            
+            # If replacing, delete the previous asset
+            if uploaded is not None:
+                _delete_previous(previous_public_id, keep=uploaded.public_id)
     except Exception:
-        # The database transaction was rolled back; restore the in-memory
-        # instance so callers do not accidentally use the rejected values. A
-        # database outage can make the refresh fail too; never mask the
-        # original exception in that case.
+        if uploaded is not None:
+            _discard_upload(uploaded.public_id)
         try:
             equipment.refresh_from_db()
         except Exception:
             logger.warning(
-                "Could not refresh equipment state after a failed image removal"
+                "Could not refresh equipment state after a failed image write"
             )
         raise
 

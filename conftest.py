@@ -3,6 +3,23 @@
 import pytest
 from django.core.cache import cache
 from rest_framework.test import APIClient
+from unittest.mock import patch
+
+@pytest.fixture(autouse=True)
+def mock_cloudinary_operations():
+    """
+    Automatically mock Cloudinary uploads and deletions during pytest runs.
+    Prevents network calls and ensures tests run offline.
+    """
+    with patch("apps.common.cloudinary.cloudinary.uploader.upload") as mock_upload, \
+         patch("apps.common.cloudinary.cloudinary.uploader.destroy") as mock_destroy:
+        
+        mock_upload.return_value = {
+            "secure_url": "https://res.cloudinary.com/test/image/upload/v1/mystudio_test.jpg",
+            "public_id": "mystudio/test/public_id"
+        }
+        mock_destroy.return_value = {"result": "ok"}
+        yield
 
 
 @pytest.fixture(autouse=True)
