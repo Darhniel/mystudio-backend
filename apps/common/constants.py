@@ -17,3 +17,5 @@ MONEY_DECIMAL_PLACES = 2
 #: ``PositiveIntegerField``) can hold. Serializer and model validators use this
 #: so an oversized request returns ``400`` instead of failing at the database.
 MAX_DATABASE_INTEGER = 2_147_483_647
+
+MYSTUDIO_TIME_ZONE = "Africa/Lagos"

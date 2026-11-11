@@ -72,11 +72,17 @@ class IsOwnerOrManager(HasRole):
     allowed_roles = CATALOGUE_WRITE_ROLES
 
 
-# class IsAdministrativeStaff(RoleBasedPermission):
-#     """Any owner, manager or staff account may read administrative data."""
+class IsAdministrativeStaff(RoleBasedPermission):
+    """Allow active Django staff with a recognized platform role."""
 
-#     read_roles = ADMINISTRATIVE_ROLES
-#     write_roles = frozenset()
+    read_roles = ADMINISTRATIVE_ROLES
+    write_roles = ADMINISTRATIVE_ROLES
+
+    def has_permission(self, request, view):
+        return bool(
+            super().has_permission(request, view)
+            and request.user.is_staff
+        )
 
 
 class CanManageCatalogue(RoleBasedPermission):
