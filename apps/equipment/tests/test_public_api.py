@@ -83,6 +83,15 @@ def test_list_excludes_inactive_equipment(api_client):
     assert _results(response)[0]["name"] == "Available light"
 
 
+def test_list_includes_zero_stock_equipment(api_client):
+    make_equipment(name="Out-of-stock light", stock_quantity=0)
+
+    response = api_client.get(LIST_URL)
+
+    assert response.data["count"] == 1
+    assert _results(response)[0]["name"] == "Out-of-stock light"
+
+
 def test_list_is_ordered_by_name_by_default(api_client):
     make_equipment(name="Zoom lens")
     make_equipment(name="Apple box")

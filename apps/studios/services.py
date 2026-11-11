@@ -12,6 +12,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db import models
 from django.db.models import Max
+from django.utils import timezone
 
 from apps.common.cloudinary import (
     CloudinaryError,
@@ -177,16 +178,14 @@ def update_studio_image(
 def delete_studio_image(*, image: StudioImage) -> None:
     """Delete the image row and its Cloudinary asset atomically.
 
-    The provider call happens inside the transaction, so a Cloudinary failure
-    rolls the row deletion back. The image therefore stays visible and
-    referenced instead of leaving an orphaned asset with no database row. A
-    provider outage returns ``502`` (or ``503`` when unconfigured) and changes
-    nothing.
+    The row is deleted before the provider call inside the transaction, so a
+    Cloudinary failure rolls the row deletion back. The image therefore stays
+    visible and referenced. A provider outage returns ``502`` (or ``503`` when
+    unconfigured) and changes nothing.
     """
 
     public_id = image.cloudinary_public_id
 
     with transaction.atomic():
-        delete_image(public_id)
-
         image.delete()
+        delete_image(public_id)

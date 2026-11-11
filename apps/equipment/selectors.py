@@ -23,5 +23,4 @@ def active_equipment():
 
     return Equipment.objects.filter(
         is_active=True,
-        stock_quantity_gt=0,
     ).order_by("name")

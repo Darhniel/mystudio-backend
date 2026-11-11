@@ -10,9 +10,9 @@ is logged but does not fail the replacement, because the new image is already
 active and the catalogue must not point at a missing file.
 
 Image removal (clearing the image without a replacement) clears the row and
-deletes the Cloudinary asset in one transaction. A provider failure rolls the
-row back to its previous state so the catalogue never points at a deleted
-asset or orphans an asset with no database reference.
+deletes the Cloudinary asset in one transaction. The database change happens
+first; a provider failure rolls it back so the catalogue keeps its image
+reference.
 """
 
 import logging
@@ -68,9 +68,8 @@ def update_equipment(
     to delete the previous asset. A failure to delete the old asset is logged
     but the replacement succeeds because the new image is already active.
 
-    Removal: clears the row and deletes the Cloudinary asset in one transaction.
-    A provider failure rolls the row back so the catalogue never points at a
-    deleted asset or orphans an asset with no database reference.
+    Removal: clears the row, then deletes the Cloudinary asset in one
+    transaction. A provider failure rolls the row back to its previous state.
     """
 
     if image is not None and remove_image:
@@ -102,16 +101,12 @@ def update_equipment(
 
     try:
         with transaction.atomic():
-            # NEW: If clearing, delete from Cloudinary FIRST
+            equipment.save(update_fields=list(set(changes) | {"updated_at"}))
+
             if clearing and previous_public_id:
                 delete_image(previous_public_id)
-            
-            # Then update the database
-            equipment.save(update_fields=list(set(changes) | {"updated_at"}))
-            
-            # If replacing, delete the previous asset
-            if uploaded is not None:
-                _delete_previous(previous_public_id, keep=uploaded.public_id)
+            elif uploaded is not None:
+                _remove_previous(previous_public_id, keep=uploaded.public_id)
     except Exception:
         if uploaded is not None:
             _discard_upload(uploaded.public_id)
@@ -176,9 +171,9 @@ def set_equipment_image(*, equipment: Equipment, image) -> Equipment:
 def remove_equipment_image(*, equipment: Equipment) -> Equipment:
     """Clear the equipment image and delete its Cloudinary asset.
 
-    Removing an item that has no image is a no-op. The row is cleared and the
-    provider deletion runs in one transaction, so a failure leaves the item
-    unchanged rather than pointing at a missing file or orphaning the asset.
+    Removing an item that has no image is a no-op. The row is cleared before
+    the provider deletion inside a transaction, so a failure leaves the item
+    unchanged.
     """
 
     if not equipment.cloudinary_public_id and not equipment.image_url:

@@ -104,7 +104,7 @@ def test_database_rejects_invalid_numbers(field, value):
 
     with pytest.raises(IntegrityError):
         with transaction.atomic():
-            Equipment.objects.create(**payload)
+            Equipment.objects.bulk_create([Equipment(**payload)])
 
 
 def test_full_clean_requires_a_name():
@@ -118,7 +118,10 @@ def test_full_clean_requires_a_name():
 
 
 def test_full_clean_rejects_an_invalid_image_url():
-    equipment = make_equipment(
+    equipment = Equipment(
+        name="Invalid image URL",
+        fixed_price_kobo=100,
+        stock_quantity=1,
         image_url="not-a-url",
         cloudinary_public_id="mystudio/equipment/example",
     )
@@ -139,7 +142,12 @@ def test_full_clean_accepts_a_complete_image_pair():
 
 
 def test_full_clean_rejects_an_image_url_without_a_public_id():
-    equipment = make_equipment(image_url="https://example.com/light.jpg")
+    equipment = Equipment(
+        name="Missing public ID",
+        fixed_price_kobo=100,
+        stock_quantity=1,
+        image_url="https://example.com/light.jpg",
+    )
 
     with pytest.raises(ValidationError) as exc_info:
         equipment.full_clean()
@@ -150,7 +158,12 @@ def test_full_clean_rejects_an_image_url_without_a_public_id():
 
 
 def test_full_clean_rejects_a_public_id_without_an_image_url():
-    equipment = make_equipment(cloudinary_public_id="mystudio/equipment/example")
+    equipment = Equipment(
+        name="Missing image URL",
+        fixed_price_kobo=100,
+        stock_quantity=1,
+        cloudinary_public_id="mystudio/equipment/example",
+    )
 
     with pytest.raises(ValidationError) as exc_info:
         equipment.full_clean()
@@ -180,9 +193,16 @@ def test_duplicate_cloudinary_public_id_is_rejected():
 
     with pytest.raises(IntegrityError):
         with transaction.atomic():
-            make_equipment(
-                image_url="https://example.com/photo.jpg",
-                cloudinary_public_id=first.cloudinary_public_id,
+            Equipment.objects.bulk_create(
+                [
+                    Equipment(
+                        name="Duplicate image",
+                        fixed_price_kobo=100,
+                        stock_quantity=1,
+                        image_url="https://example.com/photo.jpg",
+                        cloudinary_public_id=first.cloudinary_public_id,
+                    )
+                ]
             )
 
 
