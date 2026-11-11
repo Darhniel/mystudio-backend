@@ -3,6 +3,10 @@
 The public list exposes active catalogue items without authentication. Image
 management stays administrative and delegates every Cloudinary operation to
 ``apps.equipment.services``.
+
+Administrative routes (including image mutations) authenticate with a JWT
+Bearer token only. Django session cookies are deliberately not accepted there,
+even for a logged-in staff account.
 """
 
 from django.shortcuts import get_object_or_404
@@ -18,6 +22,7 @@ from rest_framework.generics import (
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from apps.accounts.api.permissions import CanManageCatalogue, IsOwnerOrManager
 from apps.common.api.exceptions import image_service_error
@@ -71,9 +76,11 @@ class EquipmentAdminListCreateAPIView(ListCreateAPIView):
     """Administrative list and creation endpoint for equipment.
 
     Owner/manager accounts may create; staff accounts may read. Creation
-    accepts JSON or multipart/form-data when an ``image`` is supplied.
+    accepts JSON or multipart/form-data when an ``image`` is supplied. Only JWT
+    authentication is accepted.
     """
 
+    authentication_classes = [JWTAuthentication]
     permission_classes = [CanManageCatalogue]
     serializer_class = EquipmentAdminSerializer
     filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
@@ -104,7 +111,7 @@ class EquipmentAdminListCreateAPIView(ListCreateAPIView):
     ),
     patch=extend_schema(
         tags=["admin-equipment"],
-        summary="Update an equipment item",
+        summary="Partially update an equipment item",
     ),
     put=extend_schema(
         tags=["admin-equipment"],
@@ -121,6 +128,7 @@ class EquipmentAdminListCreateAPIView(ListCreateAPIView):
 class EquipmentAdminDetailAPIView(RetrieveUpdateDestroyAPIView):
     """Administrative retrieve, update and deactivate endpoint for one item."""
 
+    authentication_classes = [JWTAuthentication]
     permission_classes = [CanManageCatalogue]
     serializer_class = EquipmentAdminSerializer
     lookup_url_kwarg = "equipment_id"
@@ -137,28 +145,18 @@ class EquipmentAdminDetailAPIView(RetrieveUpdateDestroyAPIView):
 
 
 class EquipmentImageAPIView(APIView):
-    """Upload, replace or remove the image of one equipment item."""
+    """Upload, replace or remove the image of one equipment item.
 
+    This endpoint is retained for backwards compatibility. The administrative
+    create/update endpoints also accept image operations via the serializer.
+    """
+
+    authentication_classes = [JWTAuthentication]
     permission_classes = [IsOwnerOrManager]
 
     @staticmethod
     def _get_equipment(equipment_id):
         return get_object_or_404(Equipment, pk=equipment_id)
-
-    def _save(self, request, equipment_id):
-        equipment = self._get_equipment(equipment_id)
-        serializer = EquipmentImageUploadSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        try:
-            equipment = services.set_equipment_image(
-                equipment=equipment,
-                image=serializer.validated_data["image"],
-            )
-        except CloudinaryError as exc:
-            raise image_service_error(exc) from exc
-
-        return Response(EquipmentImageSerializer(equipment).data)
 
     @extend_schema(
         tags=["equipment"],
@@ -177,6 +175,21 @@ class EquipmentImageAPIView(APIView):
     )
     def put(self, request, equipment_id):
         return self._save(request, equipment_id)
+
+    def _save(self, request, equipment_id):
+        equipment = self._get_equipment(equipment_id)
+        serializer = EquipmentImageUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            equipment = services.set_equipment_image(
+                equipment=equipment,
+                image=serializer.validated_data["image"],
+            )
+        except CloudinaryError as exc:
+            raise image_service_error(exc) from exc
+
+        return Response(EquipmentImageSerializer(equipment).data)
 
     @extend_schema(
         tags=["equipment"],

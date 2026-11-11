@@ -210,6 +210,8 @@ GET /api/v1/studios/?page=2&page_size=50
 ### `GET /api/v1/studios/{slug}/` — public
 
 Full detail for one active studio. Inactive or unknown slugs return `404`.
+The slug lookup is case-insensitive: `/api/v1/studios/My-Studio/` and
+`/api/v1/studios/my-studio/` resolve to the same studio.
 
 ```json
 {
@@ -232,13 +234,21 @@ Full detail for one active studio. Inactive or unknown slugs return `404`.
 }
 ```
 
-Images are ordered by `display_order`, then `created_at`.
+Images are ordered by `display_order`, then `created_at`, then `id`.
+
+All integer fields (`hourly_rate_kobo`, `capacity`) are capped at the maximum
+PostgreSQL integer value (`2,147,483,647`). Requests exceeding this return
+`400` instead of failing at the database.
 
 ### `GET /api/v1/equipment/` — public
 
 Paginated list of active equipment, ordered by name. Equipment is shared
 inventory; availability and stock are a future bookings concern and are not part
 of this response.
+
+Items with `stock_quantity = 0` (temporarily out of stock) are included in the
+public catalogue. This allows customers to see the item and its price; the
+bookings milestone will enforce availability when a reservation is attempted.
 
 ```json
 {
@@ -274,7 +284,8 @@ surface.
 ## Administrative catalogue
 
 Administrative routes live under `/api/v1/admin/`. Every route requires a valid
-JWT access token; anonymous requests return `401`.
+JWT access token (Bearer authentication only; Django session cookies are not
+accepted); anonymous requests return `401`.
 
 | Role | Administrative access |
 |---|---|
@@ -387,10 +398,12 @@ disappears from the public catalogue, and repeated deletes are safe.
 is required. Image IDs are scoped to their studio, so an image under another
 studio returns `404`.
 
-`DELETE` removes the image row and then its Cloudinary asset. It returns
-`204`; a provider failure returns `502` after the row is removed. Studio images
-have no booking history, so they are permanently deleted rather than
-deactivated.
+`DELETE` removes the image row and its Cloudinary asset atomically. Both
+operations run in one database transaction: if the Cloudinary deletion fails,
+the row deletion is rolled back and the image stays visible. This prevents
+orphaned Cloudinary assets. A provider failure returns `502` (or `503` when
+unconfigured) and the image is unchanged. Studio images have no booking
+history, so they are permanently deleted rather than deactivated.
 
 ### `GET /api/v1/admin/equipment/` — owner/manager/staff
 
@@ -430,11 +443,21 @@ Accepts any subset of the create fields. Image handling:
 - send `image` as `multipart/form-data` to upload or replace the current image;
 - send `"remove_image": true` as JSON to clear it;
 - sending both in one request returns `400`.
+- `remove_image` is rejected on create (there is no image to remove yet).
 
 A replacement is saved before the previous Cloudinary asset is deleted. If the
 database write fails, the new upload is discarded; if the old-asset deletion
-fails, the replacement still succeeds and the failure is logged. Removing an
-image clears the row first; an asset deletion failure then returns `502`.
+fails, the replacement still succeeds and the failure is logged.
+
+Removing an image clears the row and deletes the Cloudinary asset in one
+transaction. If the provider deletion fails, the row clearing is rolled back
+and the image stays visible. This prevents orphaned Cloudinary assets. A
+provider failure returns `502` (or `503` when unconfigured) and the image is
+unchanged.
+
+All integer fields (`fixed_price_kobo`, `stock_quantity`) are capped at the
+maximum PostgreSQL integer value (`2,147,483,647`). Requests exceeding this
+return `400` instead of failing at the database.
 
 ### `DELETE /api/v1/admin/equipment/{id}/` — owner/manager
 

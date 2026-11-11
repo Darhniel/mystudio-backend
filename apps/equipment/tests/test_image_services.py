@@ -181,5 +181,7 @@ def test_remove_propagates_a_cloudinary_failure(delete_mock):
 
     equipment.refresh_from_db()
 
-    assert equipment.image_url is None
-    assert equipment.cloudinary_public_id is None
+    # With atomic removal, a Cloudinary failure rolls back the row clearing.
+    # The image stays so the catalogue never points at a missing asset.
+    assert equipment.image_url is not None
+    assert equipment.cloudinary_public_id is not None

@@ -4,10 +4,15 @@ Equipment is global shared inventory; the image helpers here replace or remove
 the single image attached to an item. Cloudinary access is centralised in
 :mod:`apps.common.cloudinary`.
 
-Image writes and the matching Cloudinary cleanup run in one database
-transaction. A provider failure therefore rolls the row back to its previous
-state, and a freshly uploaded replacement is deleted as a compensating action,
-so a failed request never leaves an unreferenced asset behind.
+Image replacement uploads the new file first, saves the new references, and
+then attempts to delete the previous asset. A failure to delete the old asset
+is logged but does not fail the replacement, because the new image is already
+active and the catalogue must not point at a missing file.
+
+Image removal (clearing the image without a replacement) clears the row and
+deletes the Cloudinary asset in one transaction. A provider failure rolls the
+row back to its previous state so the catalogue never points at a deleted
+asset or orphans an asset with no database reference.
 """
 
 import logging
@@ -59,12 +64,13 @@ def update_equipment(
 ) -> Equipment:
     """Apply validated changes, optionally replacing or clearing the image.
 
-    A replacement uploads the new file first, saves the new references and
-    deletes the previous asset inside the same transaction. If either the
-    database write or the provider deletion fails, the row returns to its
-    previous state and the new upload is destroyed. Removal follows the same
-    rule: the cleared row is committed only after Cloudinary confirms the
-    deletion, so a provider outage never orphans an asset.
+    Replacement: uploads the new file, saves the new references, then attempts
+    to delete the previous asset. A failure to delete the old asset is logged
+    but the replacement succeeds because the new image is already active.
+
+    Removal: clears the row and deletes the Cloudinary asset in one transaction.
+    A provider failure rolls the row back so the catalogue never points at a
+    deleted asset or orphans an asset with no database reference.
     """
 
     if image is not None and remove_image:
@@ -94,16 +100,24 @@ def update_equipment(
     for field, value in changes.items():
         setattr(equipment, field, value)
 
+    # Replacement: save new refs first, then try to delete old asset outside
+    # the transaction. If old-asset deletion fails, the replacement still
+    # succeeds and the failure is logged.
+    if uploaded is not None:
+        try:
+            equipment.save(update_fields=list(set(changes) | {"updated_at"}))
+        except Exception:
+            _discard_upload(uploaded.public_id)
+            raise
+        _remove_previous(previous_public_id, keep=uploaded.public_id)
+        return equipment
+
+    # Removal: clear row and delete asset atomically. Failure rolls back.
     try:
         with transaction.atomic():
             equipment.save(update_fields=list(set(changes) | {"updated_at"}))
-            if uploaded is not None:
-                _delete_previous(previous_public_id, keep=uploaded.public_id)
-            elif clearing:
-                delete_image(previous_public_id)
+            delete_image(previous_public_id)
     except Exception:
-        if uploaded is not None:
-            _discard_upload(uploaded.public_id)
         # The database transaction was rolled back; restore the in-memory
         # instance so callers do not accidentally use the rejected values. A
         # database outage can make the refresh fail too; never mask the
@@ -112,7 +126,7 @@ def update_equipment(
             equipment.refresh_from_db()
         except Exception:
             logger.warning(
-                "Could not refresh equipment state after a failed image write"
+                "Could not refresh equipment state after a failed image removal"
             )
         raise
 
@@ -138,12 +152,21 @@ def _discard_upload(public_id: str) -> None:
         )
 
 
-def _delete_previous(public_id: str | None, *, keep: str | None = None) -> None:
-    """Delete a replaced asset; failures propagate so the caller can roll back."""
+def _remove_previous(public_id: str | None, *, keep: str | None = None) -> None:
+    """Delete a replaced asset without failing an otherwise successful upload.
+
+    This matches the studio image replacement behaviour: the replacement is
+    already active; an orphaned asset is preferable to reporting failure for
+    an operation the user can see succeeded.
+    """
 
     if not public_id or public_id == keep:
         return
-    delete_image(public_id)
+
+    try:
+        delete_image(public_id)
+    except CloudinaryError:
+        logger.warning("Could not remove the replaced equipment image")
 
 
 def set_equipment_image(*, equipment: Equipment, image) -> Equipment:

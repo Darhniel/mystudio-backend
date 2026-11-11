@@ -494,5 +494,7 @@ def test_removing_an_image_with_provider_failure_reports_502(
 
     assert response.status_code == 502
     equipment.refresh_from_db()
-    assert equipment.image_url is None
+    # With atomic removal, a Cloudinary failure rolls back the row clearing.
+    # The image stays so the catalogue never points at a missing asset.
+    assert equipment.image_url is not None
     assert delete_mock.called

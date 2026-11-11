@@ -63,18 +63,23 @@ Cloudinary access is never placed in views.
   Omitting `display_order` appends to the end of the studio's images.
 - `update_studio_image(image, alt_text=None, display_order=None)` changes
   metadata without re-uploading.
-- `delete_studio_image(image)` removes the PostgreSQL row first and then calls
-  Cloudinary. If the provider call fails, the API returns `502`; the row is
-  already gone, so no catalogue entry points at a deleted asset.
+- `delete_studio_image(image)` removes the PostgreSQL row and its Cloudinary
+  asset atomically inside a single database transaction. If the Cloudinary
+  deletion fails, the row deletion is rolled back and the image stays visible.
+  This prevents orphaned Cloudinary assets. A provider failure returns `502`
+  (or `503` when unconfigured) and the image is unchanged.
 
 ### Equipment — `apps/equipment/services.py`
 
 - `set_equipment_image(equipment, image)` uploads and saves the new references,
-  then removes the replaced asset. If the database write fails, the new upload
-  is destroyed. A failure to delete the previous asset is logged and does not
-  fail the replacement, because the new image is already active.
-- `remove_equipment_image(equipment)` clears the row before deleting the asset
-  and is idempotent when no image exists.
+  then attempts to remove the replaced asset. If the database write fails, the
+  new upload is destroyed. A failure to delete the previous asset is logged and
+  does not fail the replacement, because the new image is already active.
+- `remove_equipment_image(equipment)` clears the row and deletes the Cloudinary
+  asset in one transaction. If the provider deletion fails, the row clearing is
+  rolled back and the image stays visible. This prevents orphaned Cloudinary
+  assets. A provider failure returns `502` (or `503` when unconfigured) and the
+  image is unchanged. The operation is idempotent when no image exists.
 
 ## API
 

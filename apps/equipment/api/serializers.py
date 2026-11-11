@@ -6,6 +6,7 @@ availability is a future bookings concern.
 
 from rest_framework import serializers
 
+from apps.common.constants import MAX_DATABASE_INTEGER
 from apps.equipment import services
 from apps.equipment.models import Equipment
 
@@ -45,10 +46,17 @@ class EquipmentAdminSerializer(serializers.ModelSerializer):
 
     ``image`` uploads or replaces the single image; ``remove_image`` clears it.
     Both are write-only, and ``cloudinary_public_id`` is never exposed here.
+    ``remove_image`` is rejected on create since there is no image to remove.
     """
 
-    fixed_price_kobo = serializers.IntegerField(min_value=1)
-    stock_quantity = serializers.IntegerField(min_value=0)
+    fixed_price_kobo = serializers.IntegerField(
+        min_value=1,
+        max_value=MAX_DATABASE_INTEGER,
+    )
+    stock_quantity = serializers.IntegerField(
+        min_value=0,
+        max_value=MAX_DATABASE_INTEGER,
+    )
     image = serializers.ImageField(write_only=True, required=False)
     remove_image = serializers.BooleanField(
         write_only=True,
@@ -83,6 +91,12 @@ class EquipmentAdminSerializer(serializers.ModelSerializer):
                     "remove_image": (
                         "Upload a new image or remove the current one, not both."
                     )
+                }
+            )
+        if self.instance is None and attrs.get("remove_image"):
+            raise serializers.ValidationError(
+                {
+                    "remove_image": "Cannot remove an image when creating equipment."
                 }
             )
         return attrs

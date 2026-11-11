@@ -248,7 +248,9 @@ def test_failed_asset_deletion_reports_502(delete_mock, manager_client):
     )
 
     assert response.status_code == 502
-    assert not StudioImage.objects.filter(pk=image.pk).exists()
+    # With atomic deletion, a Cloudinary failure rolls back the row deletion.
+    # The image stays visible so the catalogue never points at a missing asset.
+    assert StudioImage.objects.filter(pk=image.pk).exists()
     assert delete_mock.called
 
 

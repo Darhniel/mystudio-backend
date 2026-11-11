@@ -79,14 +79,19 @@ is the explicit escape hatch for cleanup.
 
 - `studios.Studio` is a UUID entity with a unique, indexed slug. A blank slug is
   generated from the name; collisions get `-2`, `-3` suffixes. Explicit
-  duplicate slugs fail the database uniqueness check.
-- `hourly_rate_kobo` and `capacity` must be at least 1, enforced by validators
-  and database check constraints.
+  duplicate slugs fail the database uniqueness check. Slug generation is
+  case-insensitive and concurrency-safe: `My-Studio` and `my-studio` resolve to
+  the same canonical lower-case slug; concurrent requests that collide on a
+  generated slug retry automatically up to a configured attempt limit.
+- `hourly_rate_kobo` and `capacity` must be at least 1 and at most the maximum
+  PostgreSQL integer value (`2,147,483,647`), enforced by validators and
+  database check constraints.
 - `amenities` is a JSON list of non-empty strings. It is denormalised so public
   responses need no join.
 - `studios.StudioImage` references the studio with `on_delete=PROTECT` and
-  stores the Cloudinary `image_url` and unique `cloudinary_public_id`.
-  Images are ordered by `display_order`.
+  stores the Cloudinary `image_url`, unique `cloudinary_public_id`, and
+  `updated_at`. Images are ordered by `display_order`, then `created_at`, then
+  `id` for deterministic pagination.
 - `equipment.Equipment` is a **global** catalogue: there is no studio foreign
   key and one `stock_quantity` is shared by every studio. Stock must not be
   negative; zero means temporarily unavailable. The price is per item per
@@ -96,6 +101,11 @@ is the explicit escape hatch for cleanup.
   `hard_delete()` queryset method removes rows.
 - Optional equipment images are all-or-nothing: set both `image_url` and
   `cloudinary_public_id` or neither.
+- All integer price and stock fields are capped at the maximum PostgreSQL
+  integer value; requests exceeding this return `400` instead of failing at the
+  database.
+- `remove_image` is rejected on equipment creation (there is no image to remove
+  yet).
 
 ### Public catalogue API
 
@@ -119,26 +129,34 @@ is the explicit escape hatch for cleanup.
 ### Administrative catalogue API
 
 - Routes live under `/api/v1/admin/studios/` and `/api/v1/admin/equipment/`
-  (Django URL namespaces `studios-admin` and `equipment-admin`). They use the
-  default JWT authentication; nothing opts out.
+  (Django URL namespaces `studios-admin` and `equipment-admin`). They accept
+  **JWT Bearer tokens only**; Django session cookies are not accepted even for
+  logged-in staff accounts.
 - `apps.accounts.api.permissions.CanManageCatalogue` is a
   `RoleBasedPermission`: `owner` and `manager` may write, while `staff` is
   limited to safe methods. `RoleBasedPermission` takes separate `read_roles`
   and `write_roles`, so booking and payment permissions can reuse it.
 - Studio and equipment writes go through `create_*`, `update_*` and
-  `deactivate_*` functions in each app's `services.py`.
+  `deactivate_*` functions in each app's `services.py`. Both `PATCH` (partial
+  update) and `PUT` (full replace) are supported on detail endpoints.
 - `DELETE` maps to deactivation: the row stays, `is_active` becomes `False`, and
   the public selectors stop returning it. Studio images keep their row and
   Cloudinary asset.
 - Admin list endpoints include inactive records by default and expose an
   `is_active` filter. They are paginated, searchable and orderable like the
   public API.
-- `StudioAdminSerializer` validates positive prices/capacity, amenity shape and
-  slug uniqueness. `EquipmentAdminSerializer` validates positive prices,
-  non-negative stock, and accepts write-only `image` and `remove_image` fields.
+- `StudioAdminSerializer` validates positive prices/capacity (with explicit
+  upper bounds), amenity shape and slug uniqueness. `EquipmentAdminSerializer`
+  validates positive prices, non-negative stock (with explicit upper bounds),
+  accepts write-only `image` and `remove_image` fields, and rejects
+  `remove_image` on create.
 - Equipment image replacement follows the existing service ordering: persist the
   new references, then delete the previous asset. A failed database write
   destroys the fresh upload.
+- Image removal (studio images, equipment `remove_image`) deletes the row/asset
+  atomically in a transaction. A Cloudinary failure rolls back the database
+  change, preventing orphaned assets. The operation returns `502` (or `503` when
+  unconfigured) and the image is unchanged.
 - Administrative responses may include Cloudinary public IDs; public responses
   never do.
 

@@ -258,20 +258,22 @@ authentication, so even an invalid Bearer token does not block them.
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | GET | `/api/v1/studios/` | public | Paginated active studios with primary image and image count |
-| GET | `/api/v1/studios/{slug}/` | public | Full active studio detail with all images; inactive → `404` |
-| GET | `/api/v1/equipment/` | public | Paginated active equipment |
+| GET | `/api/v1/studios/{slug}/` | public | Full active studio detail with all images; inactive → `404` (slug lookup is case-insensitive) |
+| GET | `/api/v1/equipment/` | public | Paginated active equipment (includes zero-stock items) |
 
 Studios support `capacity_min`/`capacity_max`, `hourly_rate_min`/
 `hourly_rate_max`, `?search=` and `?ordering=`. Equipment supports
 `fixed_price_min`/`fixed_price_max`, `?search=` and `?ordering=`. Public
 responses never include Cloudinary public IDs, stock levels or administrative
-flags, and stock/booking availability is not calculated yet. Full reference:
-[docs/api.md](docs/api.md#public-catalogue).
+flags. Zero-stock equipment (`stock_quantity = 0`) is visible in the public
+catalogue as "temporarily out of stock"; booking availability will be enforced
+in the bookings milestone. Full reference: [docs/api.md](docs/api.md#public-catalogue).
 
 ## Administrative catalogue endpoints
 
 All administrative routes live under `/api/v1/admin/` and require a JWT access
-token. Anonymous requests return `401`.
+token (Bearer authentication only; Django session cookies are not accepted).
+Anonymous requests return `401`.
 
 | Method | Path | Roles |
 |---|---|---|
@@ -279,6 +281,7 @@ token. Anonymous requests return `401`.
 | POST | `/api/v1/admin/studios/` | owner, manager |
 | GET | `/api/v1/admin/studios/{id}/` | owner, manager, staff |
 | PATCH | `/api/v1/admin/studios/{id}/` | owner, manager |
+| PUT | `/api/v1/admin/studios/{id}/` | owner, manager |
 | DELETE | `/api/v1/admin/studios/{id}/` | owner, manager |
 | POST | `/api/v1/admin/studios/{id}/images/` | owner, manager |
 | PATCH | `/api/v1/admin/studios/{id}/images/{image_id}/` | owner, manager |
@@ -287,13 +290,15 @@ token. Anonymous requests return `401`.
 | POST | `/api/v1/admin/equipment/` | owner, manager |
 | GET | `/api/v1/admin/equipment/{id}/` | owner, manager, staff |
 | PATCH | `/api/v1/admin/equipment/{id}/` | owner, manager |
+| PUT | `/api/v1/admin/equipment/{id}/` | owner, manager |
 | DELETE | `/api/v1/admin/equipment/{id}/` | owner, manager |
 
 `owner` and `manager` manage the catalogue; `staff` has read-only access.
 `DELETE` deactivates studios and equipment instead of removing rows, so booking
 history stays valid. Studio images are removed individually (row plus
-Cloudinary asset). Equipment images can be uploaded or replaced with
-`multipart/form-data` on create/update, or cleared with `"remove_image": true`.
+Cloudinary asset) atomically: a Cloudinary failure rolls back the row deletion.
+Equipment images can be uploaded or replaced with `multipart/form-data` on
+create/update, or cleared with `"remove_image": true` (rejected on create).
 Full reference: [docs/api.md](docs/api.md#administrative-catalogue).
 
 ## Environment variables

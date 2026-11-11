@@ -186,6 +186,6 @@ def test_delete_propagates_a_cloudinary_failure(delete_mock):
     with pytest.raises(ImageDeleteFailed):
         services.delete_studio_image(image=image)
 
-    # The database row is already gone, so the catalogue does not reference a
-    # missing asset; the caller is told that Cloudinary cleanup did not finish.
-    assert not StudioImage.objects.filter(pk=image_pk).exists()
+    # With atomic deletion, a Cloudinary failure rolls back the row deletion.
+    # The image stays visible so the catalogue never points at a missing asset.
+    assert StudioImage.objects.filter(pk=image_pk).exists()
