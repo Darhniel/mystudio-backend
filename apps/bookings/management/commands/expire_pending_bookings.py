@@ -61,7 +61,7 @@ Option 4: Docker/Kubernetes CronJob
 
 from django.core.management.base import BaseCommand
 
-from apps.bookings.services import expire_pending_bookings
+from apps.bookings.services import expire_pending_bookings_batch
 
 
 class Command(BaseCommand):
@@ -81,7 +81,7 @@ class Command(BaseCommand):
         self.stdout.write(f"Starting expiration sweep with batch size {batch_size}...")
 
         try:
-            count = expire_pending_bookings(batch_size=batch_size)
+            count = expire_pending_bookings_batch(batch_size=batch_size)
             self.stdout.write(
                 self.style.SUCCESS(f"Successfully expired {count} pending bookings.")
             )

@@ -232,21 +232,73 @@ def create_booking(
         return booking
 
 
-def expire_pending_bookings() -> int:
+def expire_pending_bookings_batch(batch_size: int = 100) -> int:
     """Expire pending bookings past their payment hold expiry time.
 
     This function is designed to be called by a scheduled task (cron, Celery beat,
-    or a management command). It returns the number of bookings expired.
+    or a management command). It processes bookings in batches to avoid long-running
+    transactions and memory issues.
+
+    Returns the total number of bookings expired.
+
+    Safety guarantees:
+    - Only expires PENDING_PAYMENT bookings past their expiry time.
+    - Never touches CONFIRMED, COMPLETED, or CANCELLED bookings.
+    - Safe to run repeatedly (idempotent).
+    - Uses transactions to ensure atomicity.
     """
     now = timezone.now()
-    count = Booking.objects.filter(
-        status=BookingStatus.PENDING_PAYMENT,
-        payment_hold_expires_at__lte=now,
-    ).update(status=BookingStatus.EXPIRED)
+    total_expired = 0
 
-    if count > 0:
-        logger.info(f"Expired {count} pending bookings.")
-    return count
+    while True:
+        # Fetch a batch of expired bookings
+        expired_batch = list(
+            Booking.objects.filter(
+                status=BookingStatus.PENDING_PAYMENT,
+                payment_hold_expires_at__lte=now,
+            )[:batch_size]
+        )
+
+        if not expired_batch:
+            break
+
+        # Process each booking in a transaction
+        for booking in expired_batch:
+            try:
+                with transaction.atomic():
+                    # Re-fetch with lock to prevent race conditions
+                    locked_booking = (
+                        Booking.objects.select_for_update()
+                        .filter(id=booking.id)
+                        .first()
+                    )
+
+                    if (
+                        locked_booking
+                        and locked_booking.status == BookingStatus.PENDING_PAYMENT
+                        and locked_booking.payment_hold_expires_at <= now
+                    ):
+                        locked_booking.status = BookingStatus.EXPIRED
+                        locked_booking.save(update_fields=["status", "updated_at"])
+                        total_expired += 1
+            except Exception as e:
+                logger.error(
+                    f"Failed to expire booking {booking.reference}: {e}",
+                    exc_info=True,
+                )
+                # Continue processing other bookings
+                continue
+
+    if total_expired > 0:
+        logger.info(f"Expired {total_expired} pending bookings.")
+
+    return total_expired
+
+
+# Backward-compatible alias (deprecated)
+def expire_pending_bookings(batch_size: int = 100) -> int:
+    """Deprecated: use expire_pending_bookings_batch() instead."""
+    return expire_pending_bookings_batch(batch_size)
 
 
 def cancel_booking(*, booking: Booking, reason: str = "", cancelled_by=None) -> Booking:

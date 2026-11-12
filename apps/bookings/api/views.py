@@ -22,26 +22,29 @@ from apps.bookings.models import BlockedSlot, Booking, BookingStatus
 from apps.studios.models import Studio
 
 
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            name="date",
+            description="YYYY-MM-DD",
+            required=True,
+            type=OpenApiTypes.DATE,
+        ),
+        OpenApiParameter(
+            name="duration_hours",
+            description="Integer between 1 and 9",
+            required=False,
+            type=OpenApiTypes.INT,
+        ),
+    ],
+    responses={200: OpenApiTypes.OBJECT},
+    auth=[],
+)
 class PublicStudioAvailabilityAPIView(generics.RetrieveAPIView):
     permission_classes = [AllowAny]
     lookup_field = "slug"
+    serializer_class = None
 
-    @extend_schema(
-        parameters=[
-            OpenApiParameter(
-                name="date",
-                description="YYYY-MM-DD",
-                required=True,
-                type=OpenApiTypes.DATE,
-            ),
-            OpenApiParameter(
-                name="duration_hours",
-                description="Integer between 1 and 9",
-                required=False,
-                type=OpenApiTypes.INT,
-            ),
-        ]
-    )
     def get(self, request, slug, *args, **kwargs):
         try:
             studio = Studio.objects.get(slug=slug, is_active=True)
@@ -122,6 +125,7 @@ class PublicStudioAvailabilityAPIView(generics.RetrieveAPIView):
         )
 
 
+@extend_schema(auth=[])
 class PublicBookingCreateAPIView(generics.CreateAPIView):
     permission_classes = [AllowAny]
     serializer_class = BookingCreateSerializer
@@ -134,23 +138,24 @@ class PublicBookingCreateAPIView(generics.CreateAPIView):
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
 
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            name="token",
+            description="High-entropy access token",
+            required=True,
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+        ),
+    ],
+    auth=[],
+)
 class PublicBookingRetrieveAPIView(generics.RetrieveAPIView):
     permission_classes = [AllowAny]
     serializer_class = BookingResponseSerializer
     lookup_field = "reference"
     lookup_url_kwarg = "reference"
 
-    @extend_schema(
-        parameters=[
-            OpenApiParameter(
-                name="token",
-                description="High-entropy access token",
-                required=True,
-                type=OpenApiTypes.STR,
-                location=OpenApiParameter.QUERY,
-            ),
-        ]
-    )
     def get_queryset(self):
         return Booking.objects.select_related("studio").prefetch_related(
             "equipment_items__equipment"
