@@ -1,0 +1,2855 @@
+openapi: 3.0.3
+info:
+  title: MyStudio API
+  version: 1.0.0
+  description: 'API for the MyStudio studio and equipment rental platform: accounts,
+    studios, equipment, bookings and Paystack payments.'
+paths:
+  /api/v1/:
+    get:
+      operationId: root_retrieve
+      description: Lists the available API groups. Useful for smoke checks and clients.
+      summary: API root
+      tags:
+      - meta
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/health/:
+    get:
+      operationId: health_retrieve
+      description: Returns the service status and verifies database connectivity.
+      summary: Service health
+      tags:
+      - health
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '503':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/auth/login/:
+    post:
+      operationId: auth_login_create
+      description: Obtain a JWT pair with email and password.
+      summary: Log in
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MyStudioTokenObtainPairRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MyStudioTokenObtainPairRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MyStudioTokenObtainPairRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+          description: ''
+  /api/v1/auth/refresh/:
+    post:
+      operationId: auth_refresh_create
+      description: Exchange a refresh token for a new access token.
+      summary: Refresh an access token
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/v1/auth/verify/:
+    post:
+      operationId: auth_verify_create
+      description: Check whether a token is still valid.
+      summary: Verify a token
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenVerifyRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenVerifyRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenVerifyRequest'
+        required: true
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/logout/:
+    post:
+      operationId: auth_logout_create
+      description: Blacklist a refresh token so it can no longer be used.
+      summary: Log out
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/auth/me/:
+    get:
+      operationId: auth_me_retrieve
+      description: Read or update the authenticated user's profile.
+      summary: Get the current user
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+    patch:
+      operationId: auth_me_partial_update
+      description: Read or update the authenticated user's profile.
+      summary: Update the current user's profile
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProfileUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProfileUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProfileUpdateRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/v1/auth/change-password/:
+    post:
+      operationId: auth_change_password_create
+      description: Change the authenticated user's password.
+      summary: Change password
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/studios/:
+    get:
+      operationId: studios_list
+      description: Public, paginated list of active studios.
+      summary: List active studios
+      parameters:
+      - in: query
+        name: capacity_max
+        schema:
+          type: integer
+      - in: query
+        name: capacity_min
+        schema:
+          type: integer
+      - in: query
+        name: hourly_rate_max
+        schema:
+          type: integer
+      - in: query
+        name: hourly_rate_min
+        schema:
+          type: integer
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - studios
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedStudioListList'
+          description: ''
+  /api/v1/studios/{slug}/images/:
+    post:
+      operationId: studios_images_create
+      description: Add an image to a studio via multipart/form-data.
+      summary: Upload a studio image
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - studios
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudioImageUploadRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StudioImageUploadRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StudioImageUploadRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudioImage'
+          description: ''
+  /api/v1/studios/{slug}/images/{image_id}/:
+    patch:
+      operationId: studios_images_partial_update
+      description: Update the metadata of one image or remove it and its Cloudinary
+        asset.
+      summary: Update a studio image's metadata
+      parameters:
+      - in: path
+        name: image_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - studios
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStudioImageUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedStudioImageUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedStudioImageUpdateRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudioImage'
+          description: ''
+    delete:
+      operationId: studios_images_destroy
+      description: Update the metadata of one image or remove it and its Cloudinary
+        asset.
+      summary: Delete a studio image
+      parameters:
+      - in: path
+        name: image_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - studios
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/studios/{slug}/:
+    get:
+      operationId: studios_retrieve
+      description: Public detail page for an active studio; inactive studios are 404.
+      summary: Retrieve an active studio
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - studios
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudioDetail'
+          description: ''
+  /api/v1/equipment/:
+    get:
+      operationId: equipment_list
+      description: Public, paginated list of active equipment.
+      summary: List active equipment
+      parameters:
+      - in: query
+        name: fixed_price_max
+        schema:
+          type: integer
+      - in: query
+        name: fixed_price_min
+        schema:
+          type: integer
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - equipment
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedEquipmentPublicList'
+          description: ''
+  /api/v1/equipment/{equipment_id}/image/:
+    post:
+      operationId: equipment_image_create
+      description: |-
+        Upload, replace or remove the image of one equipment item.
+
+        This endpoint is retained for backwards compatibility. The administrative
+        create/update endpoints also accept image operations via the serializer.
+      summary: Upload or replace an equipment image
+      parameters:
+      - in: path
+        name: equipment_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - equipment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EquipmentImageUploadRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EquipmentImageUploadRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EquipmentImageUploadRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EquipmentImage'
+          description: ''
+    put:
+      operationId: equipment_image_update
+      description: |-
+        Upload, replace or remove the image of one equipment item.
+
+        This endpoint is retained for backwards compatibility. The administrative
+        create/update endpoints also accept image operations via the serializer.
+      summary: Replace an equipment image
+      parameters:
+      - in: path
+        name: equipment_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - equipment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EquipmentImageUploadRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EquipmentImageUploadRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EquipmentImageUploadRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EquipmentImage'
+          description: ''
+    delete:
+      operationId: equipment_image_destroy
+      description: |-
+        Upload, replace or remove the image of one equipment item.
+
+        This endpoint is retained for backwards compatibility. The administrative
+        create/update endpoints also accept image operations via the serializer.
+      summary: Remove an equipment image
+      parameters:
+      - in: path
+        name: equipment_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - equipment
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/admin/studios/:
+    get:
+      operationId: admin_studios_list
+      description: |-
+        Administrative list and creation endpoint for studios.
+
+        Owner/manager accounts may create; staff accounts may read. Only JWT
+        authentication is accepted.
+      summary: List studios (including inactive)
+      parameters:
+      - in: query
+        name: capacity_max
+        schema:
+          type: integer
+      - in: query
+        name: capacity_min
+        schema:
+          type: integer
+      - in: query
+        name: hourly_rate_max
+        schema:
+          type: integer
+      - in: query
+        name: hourly_rate_min
+        schema:
+          type: integer
+      - in: query
+        name: is_active
+        schema:
+          type: boolean
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - admin-studios
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedStudioAdminList'
+          description: ''
+    post:
+      operationId: admin_studios_create
+      description: |-
+        Administrative list and creation endpoint for studios.
+
+        Owner/manager accounts may create; staff accounts may read. Only JWT
+        authentication is accepted.
+      summary: Create a studio
+      tags:
+      - admin-studios
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudioAdminRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StudioAdminRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StudioAdminRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudioAdmin'
+          description: ''
+  /api/v1/admin/studios/{studio_id}/images/:
+    post:
+      operationId: admin_studios_images_create
+      description: Add an image to a studio via multipart/form-data (administrative).
+      summary: Upload a studio image
+      parameters:
+      - in: path
+        name: studio_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin-studios
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudioImageUploadRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StudioImageUploadRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StudioImageUploadRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudioImage'
+          description: ''
+  /api/v1/admin/studios/{studio_id}/images/{image_id}/:
+    patch:
+      operationId: admin_studios_images_partial_update
+      description: Update one image's metadata or remove it and its Cloudinary asset.
+      summary: Update a studio image's metadata
+      parameters:
+      - in: path
+        name: image_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: studio_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin-studios
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStudioImageUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedStudioImageUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedStudioImageUpdateRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudioImage'
+          description: ''
+    delete:
+      operationId: admin_studios_images_destroy
+      description: Update one image's metadata or remove it and its Cloudinary asset.
+      summary: Delete a studio image
+      parameters:
+      - in: path
+        name: image_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: studio_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin-studios
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/admin/studios/{studio_id}/:
+    get:
+      operationId: admin_studios_retrieve
+      description: Administrative retrieve, update and deactivate endpoint for one
+        studio.
+      summary: Retrieve a studio
+      parameters:
+      - in: path
+        name: studio_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin-studios
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudioAdmin'
+          description: ''
+    put:
+      operationId: admin_studios_update
+      description: Administrative retrieve, update and deactivate endpoint for one
+        studio.
+      summary: Replace a studio
+      parameters:
+      - in: path
+        name: studio_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin-studios
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudioAdminRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StudioAdminRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StudioAdminRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudioAdmin'
+          description: ''
+    patch:
+      operationId: admin_studios_partial_update
+      description: Administrative retrieve, update and deactivate endpoint for one
+        studio.
+      summary: Partially update a studio
+      parameters:
+      - in: path
+        name: studio_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin-studios
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStudioAdminRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedStudioAdminRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedStudioAdminRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudioAdmin'
+          description: ''
+    delete:
+      operationId: admin_studios_destroy
+      description: Deactivates the studio and keeps its row and images for history.
+      summary: Deactivate a studio
+      parameters:
+      - in: path
+        name: studio_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin-studios
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/admin/equipment/:
+    get:
+      operationId: admin_equipment_list
+      description: |-
+        Administrative list and creation endpoint for equipment.
+
+        Owner/manager accounts may create; staff accounts may read. Creation
+        accepts JSON or multipart/form-data when an ``image`` is supplied. Only JWT
+        authentication is accepted.
+      summary: List equipment (including inactive)
+      parameters:
+      - in: query
+        name: fixed_price_max
+        schema:
+          type: integer
+      - in: query
+        name: fixed_price_min
+        schema:
+          type: integer
+      - in: query
+        name: is_active
+        schema:
+          type: boolean
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - admin-equipment
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedEquipmentAdminList'
+          description: ''
+    post:
+      operationId: admin_equipment_create
+      description: |-
+        Administrative list and creation endpoint for equipment.
+
+        Owner/manager accounts may create; staff accounts may read. Creation
+        accepts JSON or multipart/form-data when an ``image`` is supplied. Only JWT
+        authentication is accepted.
+      summary: Create an equipment item
+      tags:
+      - admin-equipment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EquipmentAdminRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EquipmentAdminRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EquipmentAdminRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EquipmentAdmin'
+          description: ''
+  /api/v1/admin/equipment/{equipment_id}/:
+    get:
+      operationId: admin_equipment_retrieve
+      description: Administrative retrieve, update and deactivate endpoint for one
+        item.
+      summary: Retrieve an equipment item
+      parameters:
+      - in: path
+        name: equipment_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin-equipment
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EquipmentAdmin'
+          description: ''
+    put:
+      operationId: admin_equipment_update
+      description: Administrative retrieve, update and deactivate endpoint for one
+        item.
+      summary: Replace an equipment item
+      parameters:
+      - in: path
+        name: equipment_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin-equipment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EquipmentAdminRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EquipmentAdminRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EquipmentAdminRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EquipmentAdmin'
+          description: ''
+    patch:
+      operationId: admin_equipment_partial_update
+      description: Administrative retrieve, update and deactivate endpoint for one
+        item.
+      summary: Partially update an equipment item
+      parameters:
+      - in: path
+        name: equipment_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin-equipment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedEquipmentAdminRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedEquipmentAdminRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedEquipmentAdminRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EquipmentAdmin'
+          description: ''
+    delete:
+      operationId: admin_equipment_destroy
+      description: Deactivates the item and keeps its row for booking history.
+      summary: Deactivate an equipment item
+      parameters:
+      - in: path
+        name: equipment_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - admin-equipment
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/bookings/studios/{slug}/availability/:
+    get:
+      operationId: bookings_studios_availability_retrieve
+      parameters:
+      - in: query
+        name: date
+        schema:
+          type: string
+          format: date
+        description: YYYY-MM-DD
+        required: true
+      - in: query
+        name: duration_hours
+        schema:
+          type: integer
+        description: Integer between 1 and 9
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - bookings
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/bookings/:
+    post:
+      operationId: bookings_create
+      tags:
+      - bookings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BookingCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BookingCreateRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingCreate'
+          description: ''
+  /api/v1/bookings/admin/:
+    get:
+      operationId: bookings_admin_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - bookings
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAdminBookingList'
+          description: ''
+  /api/v1/bookings/admin/{booking_id}/:
+    get:
+      operationId: bookings_admin_retrieve
+      parameters:
+      - in: path
+        name: booking_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - bookings
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBooking'
+          description: ''
+  /api/v1/bookings/admin/{booking_id}/cancel/:
+    post:
+      operationId: bookings_admin_cancel_create
+      parameters:
+      - in: path
+        name: booking_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - bookings
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBooking'
+          description: ''
+  /api/v1/bookings/admin/blocked-slots/:
+    get:
+      operationId: bookings_admin_blocked_slots_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - bookings
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedBlockedSlotList'
+          description: ''
+    post:
+      operationId: bookings_admin_blocked_slots_create
+      tags:
+      - bookings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlockedSlotRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BlockedSlotRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BlockedSlotRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlockedSlot'
+          description: ''
+  /api/v1/bookings/admin/blocked-slots/{slot_id}/:
+    get:
+      operationId: bookings_admin_blocked_slots_retrieve
+      parameters:
+      - in: path
+        name: slot_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - bookings
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlockedSlot'
+          description: ''
+    delete:
+      operationId: bookings_admin_blocked_slots_destroy
+      parameters:
+      - in: path
+        name: slot_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - bookings
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/bookings/{reference}/:
+    get:
+      operationId: bookings_retrieve
+      parameters:
+      - in: path
+        name: reference
+        schema:
+          type: string
+        required: true
+      - in: query
+        name: token
+        schema:
+          type: string
+        description: High-entropy access token
+        required: true
+      tags:
+      - bookings
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+          description: ''
+  /api/v1/payments/initialize/:
+    post:
+      operationId: payments_initialize_create
+      description: Initialize a Paystack transaction for a pending booking.
+      tags:
+      - Payments - Public
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentInitializeRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PaymentInitializeRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PaymentInitializeRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentInitialize'
+          description: ''
+  /api/v1/payments/verify/:
+    post:
+      operationId: payments_verify_create
+      description: Verify a Paystack transaction and confirm the booking if eligible.
+      tags:
+      - Payments - Public
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentVerifyRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PaymentVerifyRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PaymentVerifyRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentVerify'
+          description: ''
+  /api/v1/payments/{reference}/status/:
+    get:
+      operationId: payments_status_retrieve
+      description: Retrieve the status of a payment and its associated booking.
+      parameters:
+      - in: query
+        name: booking_access_token
+        schema:
+          type: string
+        description: Secure access token for the booking
+        required: true
+      - in: path
+        name: reference
+        schema:
+          type: string
+        required: true
+      tags:
+      - Payments - Public
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentStatus'
+          description: ''
+  /api/v1/payments/webhook/:
+    post:
+      operationId: payments_webhook_create
+      description: Paystack webhook endpoint. Secured via Paystack-Signature header.
+      tags:
+      - Payments - Webhook
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/payments/admin/:
+    get:
+      operationId: payments_admin_list
+      description: List all payments with filtering and search capabilities.
+      parameters:
+      - in: query
+        name: booking__reference
+        schema:
+          type: string
+      - in: query
+        name: created_at
+        schema:
+          type: string
+          format: date-time
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: paystack_reference
+        schema:
+          type: string
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - abandoned
+          - failed
+          - initialized
+          - initializing
+          - ongoing
+          - pending
+          - processing
+          - requires_review
+          - reversed
+          - success
+        description: |-
+          * `initializing` - Initializing
+          * `initialized` - Initialized
+          * `success` - Success
+          * `failed` - Failed
+          * `abandoned` - Abandoned
+          * `requires_review` - Requires review
+          * `pending` - Pending
+          * `ongoing` - Ongoing
+          * `processing` - Processing
+          * `reversed` - Reversed
+      tags:
+      - Payments - Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAdminPaymentList'
+          description: ''
+  /api/v1/payments/admin/{payment_id}/:
+    get:
+      operationId: payments_admin_retrieve
+      description: Retrieve a single payment by ID.
+      parameters:
+      - in: path
+        name: payment_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - Payments - Admin
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPayment'
+          description: ''
+components:
+  schemas:
+    AdminBooking:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        reference:
+          type: string
+          readOnly: true
+          description: Public identifier, generated on creation and never reused.
+        studio:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Studios deactivate instead of deleting, so history survives.
+        customer_full_name:
+          type: string
+          readOnly: true
+        customer_email:
+          type: string
+          format: email
+          readOnly: true
+          description: Stored lower-case so guest lookups are case-insensitive.
+        customer_phone:
+          type: string
+          readOnly: true
+        start_time:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Timezone-aware, on the hour, inside studio operating hours.
+        end_time:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Timezone-aware, on the hour, after start_time.
+        duration_hours:
+          type: integer
+          readOnly: true
+          description: Whole hours between start_time and end_time.
+        studio_hourly_price_kobo:
+          type: integer
+          readOnly: true
+          description: Snapshot of Studio.hourly_rate_kobo at booking time.
+        studio_subtotal_kobo:
+          type: integer
+          readOnly: true
+          description: studio_hourly_price_kobo x duration_hours.
+        equipment_subtotal_kobo:
+          type: integer
+          readOnly: true
+          description: Sum of the equipment line subtotals; fixed per booking.
+        total_amount_kobo:
+          type: integer
+          readOnly: true
+          description: studio_subtotal_kobo + equipment_subtotal_kobo. 100% upfront.
+        status:
+          allOf:
+          - $ref: '#/components/schemas/AdminBookingStatusEnum'
+          readOnly: true
+        payment_hold_expires_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: When an unpaid hold lapses. Required while the booking is pending
+            payment so the expiration sweep can always find it.
+        terms_accepted_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: When the customer accepted the terms. No refunds, no self-cancellation.
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - customer_email
+      - customer_full_name
+      - customer_phone
+      - duration_hours
+      - end_time
+      - equipment_subtotal_kobo
+      - id
+      - payment_hold_expires_at
+      - reference
+      - start_time
+      - status
+      - studio
+      - studio_hourly_price_kobo
+      - studio_subtotal_kobo
+      - terms_accepted_at
+      - total_amount_kobo
+      - updated_at
+    AdminBookingStatusEnum:
+      enum:
+      - pending_payment
+      - confirmed
+      - expired
+      - completed
+      - cancelled
+      type: string
+      description: |-
+        * `pending_payment` - Pending payment
+        * `confirmed` - Confirmed
+        * `expired` - Expired
+        * `completed` - Completed
+        * `cancelled` - Cancelled
+    AdminPayment:
+      type: object
+      description: Administrative payment details with booking context.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        paystack_reference:
+          type: string
+          readOnly: true
+          description: Unique reference sent to Paystack. Used for idempotency.
+        paystack_transaction_id:
+          type: string
+          readOnly: true
+          nullable: true
+          description: Paystack's internal transaction ID, populated on success.
+        amount_kobo:
+          type: integer
+          readOnly: true
+          description: Exact amount charged, copied from Booking.total_amount_kobo
+            at initialization time. Never accepted from the frontend.
+        currency:
+          type: string
+          readOnly: true
+          description: Always NGN for this platform.
+        status:
+          allOf:
+          - $ref: '#/components/schemas/AdminPaymentStatusEnum'
+          readOnly: true
+        payment_channel:
+          type: string
+          readOnly: true
+          description: Payment channel reported by Paystack (e.g., 'card', 'bank',
+            'ussd', 'mobile_money'). Empty until a successful charge.
+        initialized_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: When Paystack returned the authorization URL.
+        paid_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: When Paystack reported the charge as successful.
+        verified_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: When our server verified the transaction with Paystack.
+        review_reason:
+          type: string
+          readOnly: true
+          description: Why this payment requires manual review. Empty when status
+            is not REQUIRES_REVIEW.
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        booking_reference:
+          type: string
+        customer_email:
+          type: string
+      required:
+      - amount_kobo
+      - booking_reference
+      - created_at
+      - currency
+      - customer_email
+      - id
+      - initialized_at
+      - paid_at
+      - payment_channel
+      - paystack_reference
+      - paystack_transaction_id
+      - review_reason
+      - status
+      - verified_at
+    AdminPaymentStatusEnum:
+      enum:
+      - initializing
+      - initialized
+      - success
+      - failed
+      - abandoned
+      - requires_review
+      - pending
+      - ongoing
+      - processing
+      - reversed
+      type: string
+      description: |-
+        * `initializing` - Initializing
+        * `initialized` - Initialized
+        * `success` - Success
+        * `failed` - Failed
+        * `abandoned` - Abandoned
+        * `requires_review` - Requires review
+        * `pending` - Pending
+        * `ongoing` - Ongoing
+        * `processing` - Processing
+        * `reversed` - Reversed
+    AuthResponse:
+      type: object
+      description: Response returned by login.
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+          readOnly: true
+        user:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+      required:
+      - access
+      - refresh
+      - user
+    BlockedSlot:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        studio_name:
+          type: string
+          readOnly: true
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        reason:
+          type: string
+          description: Why the studio is unavailable. Required for auditability.
+          maxLength: 200
+        created_by_email:
+          type: string
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - created_by_email
+      - end_time
+      - id
+      - reason
+      - start_time
+      - studio_name
+    BlockedSlotRequest:
+      type: object
+      properties:
+        studio_id:
+          type: string
+          format: uuid
+          writeOnly: true
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        reason:
+          type: string
+          minLength: 1
+          description: Why the studio is unavailable. Required for auditability.
+          maxLength: 200
+      required:
+      - end_time
+      - reason
+      - start_time
+      - studio_id
+    BookingCreate:
+      type: object
+      properties:
+        studio_id:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          description: Time in HH:MM format, e.g., '10:00'
+        duration_hours:
+          type: integer
+          maximum: 9
+          minimum: 1
+        customer:
+          $ref: '#/components/schemas/Customer'
+        equipment:
+          type: array
+          items:
+            $ref: '#/components/schemas/EquipmentItem'
+        terms_accepted:
+          type: boolean
+      required:
+      - customer
+      - date
+      - duration_hours
+      - start_time
+      - studio_id
+      - terms_accepted
+    BookingCreateRequest:
+      type: object
+      properties:
+        studio_id:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          minLength: 1
+          description: Time in HH:MM format, e.g., '10:00'
+        duration_hours:
+          type: integer
+          maximum: 9
+          minimum: 1
+        customer:
+          $ref: '#/components/schemas/CustomerRequest'
+        equipment:
+          type: array
+          items:
+            $ref: '#/components/schemas/EquipmentItemRequest'
+        terms_accepted:
+          type: boolean
+      required:
+      - customer
+      - date
+      - duration_hours
+      - start_time
+      - studio_id
+      - terms_accepted
+    BookingResponse:
+      type: object
+      properties:
+        booking_reference:
+          type: string
+        status:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        duration_hours:
+          type: integer
+        studio_amount_kobo:
+          type: integer
+        equipment_amount_kobo:
+          type: integer
+        total_amount_kobo:
+          type: integer
+        currency:
+          type: string
+          default: NGN
+        payment_required:
+          type: boolean
+          readOnly: true
+      required:
+      - booking_reference
+      - duration_hours
+      - equipment_amount_kobo
+      - expires_at
+      - payment_required
+      - status
+      - studio_amount_kobo
+      - total_amount_kobo
+    ChangePasswordRequest:
+      type: object
+      properties:
+        current_password:
+          type: string
+          writeOnly: true
+          minLength: 1
+        new_password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - current_password
+      - new_password
+    Customer:
+      type: object
+      properties:
+        full_name:
+          type: string
+          maxLength: 200
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          maxLength: 20
+      required:
+      - email
+      - full_name
+      - phone
+    CustomerRequest:
+      type: object
+      properties:
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        email:
+          type: string
+          format: email
+          minLength: 1
+        phone:
+          type: string
+          minLength: 1
+          maxLength: 20
+      required:
+      - email
+      - full_name
+      - phone
+    EquipmentAdmin:
+      type: object
+      description: |-
+        Create/update payload and administrative representation of an item.
+
+        ``image`` uploads or replaces the single image; ``remove_image`` clears it.
+        Both are write-only, and ``cloudinary_public_id`` is never exposed here.
+        ``remove_image`` is rejected on create since there is no image to remove.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 150
+        description:
+          type: string
+        fixed_price_kobo:
+          type: integer
+          maximum: 2147483647
+          minimum: 1
+        stock_quantity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        image_url:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+        is_active:
+          type: boolean
+          description: Inactive items are hidden from customers and kept for history.
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - fixed_price_kobo
+      - id
+      - image_url
+      - name
+      - stock_quantity
+      - updated_at
+    EquipmentAdminRequest:
+      type: object
+      description: |-
+        Create/update payload and administrative representation of an item.
+
+        ``image`` uploads or replaces the single image; ``remove_image`` clears it.
+        Both are write-only, and ``cloudinary_public_id`` is never exposed here.
+        ``remove_image`` is rejected on create since there is no image to remove.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        description:
+          type: string
+        fixed_price_kobo:
+          type: integer
+          maximum: 2147483647
+          minimum: 1
+        stock_quantity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        is_active:
+          type: boolean
+          description: Inactive items are hidden from customers and kept for history.
+        image:
+          type: string
+          format: binary
+          writeOnly: true
+        remove_image:
+          type: boolean
+          writeOnly: true
+          default: false
+      required:
+      - fixed_price_kobo
+      - name
+      - stock_quantity
+    EquipmentImage:
+      type: object
+      description: The image fields of an equipment item.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        image_url:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+        cloudinary_public_id:
+          type: string
+          readOnly: true
+          nullable: true
+          description: Cloudinary identifier, set together with image_url.
+      required:
+      - cloudinary_public_id
+      - id
+      - image_url
+    EquipmentImageUploadRequest:
+      type: object
+      description: Multipart payload for uploading or replacing an equipment image.
+      properties:
+        image:
+          type: string
+          format: binary
+      required:
+      - image
+    EquipmentItem:
+      type: object
+      properties:
+        equipment_id:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          minimum: 1
+      required:
+      - equipment_id
+      - quantity
+    EquipmentItemRequest:
+      type: object
+      properties:
+        equipment_id:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          minimum: 1
+      required:
+      - equipment_id
+      - quantity
+    EquipmentPublic:
+      type: object
+      description: Read-only catalogue item shown to customers.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        description:
+          type: string
+          readOnly: true
+        fixed_price_kobo:
+          type: integer
+          readOnly: true
+          description: Fixed price per item per booking, in kobo.
+        image_url:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+      required:
+      - description
+      - fixed_price_kobo
+      - id
+      - image_url
+      - name
+    LogoutRequest:
+      type: object
+      properties:
+        refresh:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - refresh
+    MyStudioTokenObtainPairRequest:
+      type: object
+      description: Email/password login with MyStudio claims and the user in the response.
+      properties:
+        email:
+          type: string
+          writeOnly: true
+          minLength: 1
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - email
+      - password
+    PaginatedAdminBookingList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminBooking'
+    PaginatedAdminPaymentList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminPayment'
+    PaginatedBlockedSlotList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlockedSlot'
+    PaginatedEquipmentAdminList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/EquipmentAdmin'
+    PaginatedEquipmentPublicList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/EquipmentPublic'
+    PaginatedStudioAdminList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/StudioAdmin'
+    PaginatedStudioListList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/StudioList'
+    PatchedEquipmentAdminRequest:
+      type: object
+      description: |-
+        Create/update payload and administrative representation of an item.
+
+        ``image`` uploads or replaces the single image; ``remove_image`` clears it.
+        Both are write-only, and ``cloudinary_public_id`` is never exposed here.
+        ``remove_image`` is rejected on create since there is no image to remove.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        description:
+          type: string
+        fixed_price_kobo:
+          type: integer
+          maximum: 2147483647
+          minimum: 1
+        stock_quantity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        is_active:
+          type: boolean
+          description: Inactive items are hidden from customers and kept for history.
+        image:
+          type: string
+          format: binary
+          writeOnly: true
+        remove_image:
+          type: boolean
+          writeOnly: true
+          default: false
+    PatchedProfileUpdateRequest:
+      type: object
+      description: Fields a user may change on their own profile.
+      properties:
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+    PatchedStudioAdminRequest:
+      type: object
+      description: Create/update payload and administrative representation of a studio.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        slug:
+          oneOf:
+          - type: string
+            pattern: ^[-a-zA-Z0-9_]+$
+          - type: string
+            maxLength: 0
+        description:
+          type: string
+        hourly_rate_kobo:
+          type: integer
+          maximum: 2147483647
+          minimum: 1
+        capacity:
+          type: integer
+          maximum: 2147483647
+          minimum: 1
+        amenities:
+          description: List of amenity names, for example ["WiFi", "Parking"].
+        is_active:
+          type: boolean
+          description: Inactive studios are hidden from customers and kept for history.
+    PatchedStudioImageUpdateRequest:
+      type: object
+      description: Fields an administrator may change without re-uploading the file.
+      properties:
+        alt_text:
+          type: string
+          maxLength: 200
+        display_order:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+    PaymentInitialize:
+      type: object
+      description: Initialize a Paystack transaction for a pending booking.
+      properties:
+        booking_reference:
+          type: string
+          maxLength: 50
+        booking_access_token:
+          type: string
+          maxLength: 64
+      required:
+      - booking_access_token
+      - booking_reference
+    PaymentInitializeRequest:
+      type: object
+      description: Initialize a Paystack transaction for a pending booking.
+      properties:
+        booking_reference:
+          type: string
+          minLength: 1
+          maxLength: 50
+        booking_access_token:
+          type: string
+          minLength: 1
+          maxLength: 64
+      required:
+      - booking_access_token
+      - booking_reference
+    PaymentStatus:
+      type: object
+      description: Public-facing payment status, excluding internal gateway details.
+      properties:
+        payment_reference:
+          type: string
+        payment_status:
+          type: string
+        amount_kobo:
+          type: integer
+          readOnly: true
+          description: Exact amount charged, copied from Booking.total_amount_kobo
+            at initialization time. Never accepted from the frontend.
+        currency:
+          type: string
+          readOnly: true
+          description: Always NGN for this platform.
+        paid_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: When Paystack reported the charge as successful.
+        booking_reference:
+          type: string
+        booking_status:
+          type: string
+      required:
+      - amount_kobo
+      - booking_reference
+      - booking_status
+      - currency
+      - paid_at
+      - payment_reference
+      - payment_status
+    PaymentVerify:
+      type: object
+      description: Verify a Paystack transaction and confirm the booking if eligible.
+      properties:
+        reference:
+          type: string
+          maxLength: 100
+        booking_access_token:
+          type: string
+          maxLength: 64
+      required:
+      - booking_access_token
+      - reference
+    PaymentVerifyRequest:
+      type: object
+      description: Verify a Paystack transaction and confirm the booking if eligible.
+      properties:
+        reference:
+          type: string
+          minLength: 1
+          maxLength: 100
+        booking_access_token:
+          type: string
+          minLength: 1
+          maxLength: 64
+      required:
+      - booking_access_token
+      - reference
+    RoleEnum:
+      enum:
+      - owner
+      - manager
+      - staff
+      type: string
+      description: |-
+        * `owner` - Owner
+        * `manager` - Manager
+        * `staff` - Staff
+    StudioAdmin:
+      type: object
+      description: Create/update payload and administrative representation of a studio.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 150
+        slug:
+          oneOf:
+          - type: string
+            pattern: ^[-a-zA-Z0-9_]+$
+          - type: string
+            maxLength: 0
+        description:
+          type: string
+        hourly_rate_kobo:
+          type: integer
+          maximum: 2147483647
+          minimum: 1
+        capacity:
+          type: integer
+          maximum: 2147483647
+          minimum: 1
+        amenities:
+          description: List of amenity names, for example ["WiFi", "Parking"].
+        is_active:
+          type: boolean
+          description: Inactive studios are hidden from customers and kept for history.
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/StudioImage'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - capacity
+      - created_at
+      - hourly_rate_kobo
+      - id
+      - images
+      - name
+      - updated_at
+    StudioAdminRequest:
+      type: object
+      description: Create/update payload and administrative representation of a studio.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        slug:
+          oneOf:
+          - type: string
+            pattern: ^[-a-zA-Z0-9_]+$
+          - type: string
+            maxLength: 0
+        description:
+          type: string
+        hourly_rate_kobo:
+          type: integer
+          maximum: 2147483647
+          minimum: 1
+        capacity:
+          type: integer
+          maximum: 2147483647
+          minimum: 1
+        amenities:
+          description: List of amenity names, for example ["WiFi", "Parking"].
+        is_active:
+          type: boolean
+          description: Inactive studios are hidden from customers and kept for history.
+      required:
+      - capacity
+      - hourly_rate_kobo
+      - name
+    StudioDetail:
+      type: object
+      description: Full public studio page, including every ordered image.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        slug:
+          type: string
+          readOnly: true
+          description: Public identifier, generated from the name when left blank.
+          pattern: ^[-a-zA-Z0-9_]+$
+        description:
+          type: string
+          readOnly: true
+        hourly_rate_kobo:
+          type: integer
+          readOnly: true
+          description: Hourly rental price in kobo.
+        capacity:
+          type: integer
+          readOnly: true
+          description: Maximum number of people allowed in the studio.
+        amenities:
+          readOnly: true
+          description: List of amenity names, for example ["WiFi", "Parking"].
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/StudioPublicImage'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - amenities
+      - capacity
+      - created_at
+      - description
+      - hourly_rate_kobo
+      - id
+      - images
+      - name
+      - slug
+    StudioImage:
+      type: object
+      description: Administrative representation of a stored studio image.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        image_url:
+          type: string
+          format: uri
+          readOnly: true
+        cloudinary_public_id:
+          type: string
+          readOnly: true
+        alt_text:
+          type: string
+          readOnly: true
+        display_order:
+          type: integer
+          readOnly: true
+          description: Lower values appear first. Duplicate values are allowed; ties
+            are broken by created_at and then id.
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - alt_text
+      - cloudinary_public_id
+      - created_at
+      - display_order
+      - id
+      - image_url
+      - updated_at
+    StudioImageUploadRequest:
+      type: object
+      description: Multipart payload for adding one image to a studio.
+      properties:
+        image:
+          type: string
+          format: binary
+        alt_text:
+          type: string
+          default: ''
+          maxLength: 200
+        display_order:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+      required:
+      - image
+    StudioList:
+      type: object
+      description: Catalogue card for an active studio.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        slug:
+          type: string
+          readOnly: true
+          description: Public identifier, generated from the name when left blank.
+          pattern: ^[-a-zA-Z0-9_]+$
+        short_description:
+          type: string
+          readOnly: true
+        hourly_rate_kobo:
+          type: integer
+          readOnly: true
+          description: Hourly rental price in kobo.
+        capacity:
+          type: integer
+          readOnly: true
+          description: Maximum number of people allowed in the studio.
+        amenities:
+          readOnly: true
+          description: List of amenity names, for example ["WiFi", "Parking"].
+        primary_image:
+          allOf:
+          - $ref: '#/components/schemas/StudioPublicImage'
+          nullable: true
+          readOnly: true
+        image_count:
+          type: integer
+          readOnly: true
+      required:
+      - amenities
+      - capacity
+      - hourly_rate_kobo
+      - id
+      - image_count
+      - name
+      - primary_image
+      - short_description
+      - slug
+    StudioPublicImage:
+      type: object
+      description: Public image representation. Cloudinary IDs stay administrative.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        image_url:
+          type: string
+          format: uri
+          readOnly: true
+        alt_text:
+          type: string
+          readOnly: true
+        display_order:
+          type: integer
+          readOnly: true
+          description: Lower values appear first. Duplicate values are allowed; ties
+            are broken by created_at and then id.
+      required:
+      - alt_text
+      - display_order
+      - id
+      - image_url
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+      required:
+      - access
+      - refresh
+    TokenRefreshRequest:
+      type: object
+      properties:
+        refresh:
+          type: string
+          minLength: 1
+      required:
+      - refresh
+    TokenVerifyRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - token
+    User:
+      type: object
+      description: Read-only representation of a staff account.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+          title: Email address
+        first_name:
+          type: string
+          readOnly: true
+        last_name:
+          type: string
+          readOnly: true
+        full_name:
+          type: string
+          readOnly: true
+        role:
+          allOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          readOnly: true
+        is_active:
+          type: boolean
+          readOnly: true
+        date_joined:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - date_joined
+      - email
+      - first_name
+      - full_name
+      - id
+      - is_active
+      - last_name
+      - role
+      - updated_at
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

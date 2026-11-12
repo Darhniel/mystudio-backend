@@ -78,7 +78,7 @@ def get_studio_availability(
 
 
 def get_overlapping_bookings(
-    *, studio: Studio, start_time: datetime, end_time: datetime
+    *, studio: Studio, start_time: datetime, end_time: datetime, exclude_booking_id=None
 ):
     """Return bookings that overlap with the given time range.
 
@@ -86,7 +86,7 @@ def get_overlapping_bookings(
     Uses the overlap condition: new_start < existing_end AND new_end > existing_start.
     """
     now = timezone.now()
-    return Booking.objects.filter(
+    overlapping_bookings = Booking.objects.filter(
         studio=studio,
         start_time__lt=end_time,
         end_time__gt=start_time,
@@ -97,6 +97,9 @@ def get_overlapping_bookings(
             payment_hold_expires_at__gt=now,
         )
     )
+    if exclude_booking_id is not None:
+        overlapping_bookings = overlapping_bookings.exclude(id=exclude_booking_id)
+    return overlapping_bookings
 
 
 def get_overlapping_blocks(*, studio: Studio, start_time: datetime, end_time: datetime):
@@ -112,7 +115,11 @@ def get_overlapping_blocks(*, studio: Studio, start_time: datetime, end_time: da
 
 
 def get_booked_equipment_quantities(
-    *, equipment_ids: list, start_time: datetime, end_time: datetime
+    *,
+    equipment_ids: list,
+    start_time: datetime,
+    end_time: datetime,
+    exclude_booking_id=None,
 ) -> dict:
     """Return a dict of equipment_id -> total booked quantity for the time range.
 
@@ -120,12 +127,18 @@ def get_booked_equipment_quantities(
     cancelled bookings do not reserve stock.
     """
     now = timezone.now()
-    lines = (
-        BookingEquipment.objects.filter(
-            equipment_id__in=equipment_ids,
-            booking__start_time__lt=end_time,
-            booking__end_time__gt=start_time,
+    equipment_bookings = BookingEquipment.objects.filter(
+        equipment_id__in=equipment_ids,
+        booking__start_time__lt=end_time,
+        booking__end_time__gt=start_time,
+    )
+    if exclude_booking_id is not None:
+        equipment_bookings = equipment_bookings.exclude(
+            booking_id=exclude_booking_id
         )
+
+    lines = (
+        equipment_bookings
         .filter(
             models.Q(booking__status=BookingStatus.CONFIRMED)
             | models.Q(

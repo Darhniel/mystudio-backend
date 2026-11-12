@@ -70,7 +70,9 @@ MANAGERS = ADMINS
 # Django's debug page shows a cleaned copy of ``settings`` and the request
 # environment. The custom filter also hides connection URLs and provider keys,
 # so credentials never reach an error page or a captured traceback.
-DEFAULT_EXCEPTION_REPORTER_FILTER = "config.exception_filter.SafeExceptionReporterFilter"
+DEFAULT_EXCEPTION_REPORTER_FILTER = (
+    "config.exception_filter.SafeExceptionReporterFilter"
+)
 
 # ---------------------------------------------------------------------------
 # Applications
@@ -184,7 +186,9 @@ if DATABASES["default"].get("ENGINE") == POSTGRES_ENGINE:
 AUTH_USER_MODEL = "accounts.User"
 
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
+    },
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
@@ -351,7 +355,9 @@ MAILERS = {
         ),
     },
 }
-DEFAULT_FROM_EMAIL = env.str("DEFAULT_FROM_EMAIL", default="MyStudio <no-reply@mystudio.ng>")
+DEFAULT_FROM_EMAIL = env.str(
+    "DEFAULT_FROM_EMAIL", default="MyStudio <no-reply@mystudio.ng>"
+)
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 # ---------------------------------------------------------------------------
@@ -395,3 +401,17 @@ LOGGING = {
         },
     },
 }
+
+# ---------------------------------------------------------------------------
+# Paystack Integration
+# ---------------------------------------------------------------------------
+PAYSTACK_SECRET_KEY = env.str("PAYSTACK_SECRET_KEY", default="sk_test_placeholder")
+PAYSTACK_WEBHOOK_SECRET = env.str(
+    "PAYSTACK_WEBHOOK_SECRET", default=PAYSTACK_SECRET_KEY
+)
+PAYSTACK_PUBLIC_KEY = env.str("PAYSTACK_PUBLIC_KEY", default="pk_test_placeholder")
+PAYSTACK_CALLBACK_URL = env.str(
+    "PAYSTACK_CALLBACK_URL",
+    default="http://localhost:3000/payment/callback",
+)
+PAYSTACK_ENVIRONMENT = env.str("PAYSTACK_ENVIRONMENT", default="test")
